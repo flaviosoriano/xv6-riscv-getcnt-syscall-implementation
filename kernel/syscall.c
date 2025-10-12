@@ -101,6 +101,7 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
+extern uint64 sys_getcnt(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -126,7 +127,24 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_getcnt]  sys_getcnt,
 };
+
+// Per-syscall invocation counters. Incremented on each syscall dispatch.
+// Sized to the number of entries in the `syscalls` table.
+static uint64 syscalls_count[NELEM(syscalls)];
+
+// Return the number of times the syscall with the given number
+// has been invoked. Takes one int argument: the syscall number.
+uint64
+sys_getcnt(void)
+{
+  int n;
+  argint(0, &n);
+  if(n < 0 || n >= NELEM(syscalls))
+    return -1;
+  return syscalls_count[n];
+}
 
 void
 syscall(void)
@@ -136,6 +154,9 @@ syscall(void)
 
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    // Increment the syscall counter for this syscall number.
+    syscalls_count[num]++;
+
     // Use num to lookup the system call function for num, call it,
     // and store its return value in p->trapframe->a0
     p->trapframe->a0 = syscalls[num]();

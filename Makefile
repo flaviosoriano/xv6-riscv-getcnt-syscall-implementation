@@ -139,6 +139,7 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
+	$U/_getcnt\
 	$U/_logstress\
 	$U/_forphan\
 	$U/_dorphan\
