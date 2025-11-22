@@ -10,6 +10,17 @@ struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
 
+// Random number generator for lottery scheduling
+// Using a simple Linear Congruential Generator (LCG)
+static unsigned long rand_next = 1;
+
+int
+random(void)
+{
+  rand_next = rand_next * 1103515245 + 12345;
+  return (unsigned int)(rand_next / 65536) % 32768;
+}
+
 struct proc *initproc;
 
 int nextpid = 1;
@@ -145,6 +156,10 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  // Initialize lottery scheduler fields
+  p->tickets = 1;  // Default: 1 ticket
+  p->ticks = 0;    // No ticks accumulated yet
 
   return p;
 }
@@ -290,6 +305,9 @@ kfork(void)
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
+  // Inherit tickets from parent
+  np->tickets = p->tickets;
+
   pid = np->pid;
 
   release(&np->lock);
@@ -417,7 +435,7 @@ kwait(uint64 addr)
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
-//  - choose a process to run.
+//  - choose a process to run using lottery scheduling.
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
@@ -437,25 +455,43 @@ scheduler(void)
     intr_on();
     intr_off();
 
-    int found = 0;
+    // Count total tickets of RUNNABLE processes
+    int total_tickets = 0;
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+        total_tickets += p->tickets;
       }
       release(&p->lock);
     }
-    if(found == 0) {
+
+    // If there are runnable processes, pick a winner
+    if(total_tickets > 0) {
+      // Generate winning ticket number
+      int winner = random() % total_tickets;
+      int counter = 0;
+
+      // Find the process that holds the winning ticket
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE) {
+          counter += p->tickets;
+          if(counter > winner) {
+            // This process wins the lottery!
+            p->state = RUNNING;
+            p->ticks++;  // Increment ticks counter
+            c->proc = p;
+            swtch(&c->context, &p->context);
+
+            // Process is done running for now.
+            c->proc = 0;
+            release(&p->lock);
+            break;
+          }
+        }
+        release(&p->lock);
+      }
+    } else {
       // nothing to run; stop running on this core until an interrupt.
       asm volatile("wfi");
     }

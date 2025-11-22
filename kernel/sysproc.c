@@ -6,6 +6,9 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "vm.h"
+#include "pstat.h"
+
+extern struct proc proc[NPROC];
 
 uint64
 sys_exit(void)
@@ -106,4 +109,66 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+// Set the number of tickets for the calling process
+uint64
+sys_settickets(void)
+{
+  int n;
+  argint(0, &n);
+  
+  // Validate: must have at least 1 ticket
+  if(n < 1)
+    return -1;
+  
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  p->tickets = n;
+  release(&p->lock);
+  
+  return 0;
+}
+
+// Get process information for all processes
+uint64
+sys_getpinfo(void)
+{
+  uint64 addr;
+  argaddr(0, &addr);
+  
+  // Check for NULL pointer
+  if(addr == 0)
+    return -1;
+  
+  struct proc *p;
+  struct pstat ps;
+  int i = 0;
+  
+  // Iterate through process table and fill pstat structure
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    
+    if(p->state == UNUSED) {
+      ps.inuse[i] = 0;
+      ps.tickets[i] = 0;
+      ps.pid[i] = 0;
+      ps.ticks[i] = 0;
+    } else {
+      ps.inuse[i] = 1;
+      ps.tickets[i] = p->tickets;
+      ps.pid[i] = p->pid;
+      ps.ticks[i] = p->ticks;
+    }
+    
+    release(&p->lock);
+    i++;
+  }
+  
+  // Copy the structure to user space
+  struct proc *curproc = myproc();
+  if(copyout(curproc->pagetable, addr, (char *)&ps, sizeof(ps)) < 0)
+    return -1;
+  
+  return 0;
 }
