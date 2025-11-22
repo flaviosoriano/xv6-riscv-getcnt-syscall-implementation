@@ -1,0 +1,45 @@
+Lottery Scheduler Test
+======================
+Creating 6 processes to test lottery scheduler
+Ticket allocation: 30, 20, 10, 30, 20, 10
+Expected ratio groups: 3:2:1 (repeated twice)
+
+Process 0 (PID 4): 30 tickets
+Process 1 (PID 5): 20 tickets
+Process 2 (PID 6): 10 tickets
+Process 3 (PID 7): 30 tickets
+Process 4 (PID 8): 20 tickets
+Process 5 (PID 9): 10 tickets
+
+Running test for 2000 time units...
+
+======================
+Test Results:
+======================
+Process 0 (PID 4): 537 ticks, 30 tickets
+Process 1 (PID 5): 357 ticks, 20 tickets
+Process 2 (PID 6): 179 ticks, 10 tickets
+Process 3 (PID 7): 527 ticks, 30 tickets
+Process 4 (PID 8): 340 ticks, 20 tickets
+Process 5 (PID 9): 165 ticks, 10 tickets
+
+======================
+Tick Distribution:
+======================
+Processes with 30 tickets: 1064 ticks (50%)
+Processes with 20 tickets: 697 ticks (33%)
+Processes with 10 tickets: 344 ticks (16%)
+
+Expected: 50%, 33%, 17% (3:2:1 ratio)
+Actual ratio: 3:2:1
+
+Individual process percentages:
+  Process 0: 25% (expected ~25%)
+  Process 1: 16% (expected ~16%)
+  Process 2: 8% (expected ~8%)
+  Process 3: 25% (expected ~25%)
+  Process 4: 16% (expected ~16%)
+  Process 5: 7% (expected ~8%)
+
+Cleaning up...
+Test completed.
